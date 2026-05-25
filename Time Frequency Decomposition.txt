@@ -1,0 +1,106 @@
+% Brain Regions
+EEGOUT = pop_loadset('filename','participant7_Preprocessed.set','filepath','C:\Users\20sb136\OneDrive - Queen''s University\EEG Data\Covert Speech Data Analysis\eeglab2022.1\TD Participant Data\EEG Data\Participant 7');
+
+rightfrontal = {'FP2', 'AF4', 'AF8', 'F2', 'F4', 'F6', 'F8', 'FC2', 'FC4', 'FC6'};
+leftfrontal = {'FP1', 'AF3', 'AF7', 'F1', 'F3', 'F5', 'F7', 'FC1', 'FC3', 'FC5', 'FPZ', 'AFZ', 'FZ'};
+righttemporal = {'FT8', 'T8', 'TP8'};
+lefttemporal = {'FT7', 'T7', 'TP7'};
+occipital = {'O1', 'OZ', 'O2'};
+rightparietal = {'CP2', 'CP4', 'CP6', 'P2', 'P4', 'P6', 'P8', 'PO4', 'PO8'};
+leftparietal = {'CP1', 'CP3', 'CP5', 'P1', 'P3', 'P5', 'P7', 'PO3', 'PO7', 'CPZ', 'PZ', 'POZ'};
+central = {'FCZ', 'CZ', 'C1', 'C2', 'C3', 'C4', 'C5', 'C6'};
+
+chanLabels = {EEGOUT.chanlocs.labels}; 
+
+rf_idx = find(ismember(chanLabels, rightfrontal));
+lf_idx = find(ismember(chanLabels, leftfrontal));
+rt_idx = find(ismember(chanLabels, righttemporal));
+lt_idx = find(ismember(chanLabels, lefttemporal));
+oc_idx = find(ismember(chanLabels, occipital));
+rp_idx = find(ismember(chanLabels, rightparietal));
+lp_idx = find(ismember(chanLabels, leftparietal));
+c_idx  = find(ismember(chanLabels, central));
+
+Locs = {rf_idx,lf_idx,rt_idx,lt_idx,oc_idx,rp_idx,lp_idx,c_idx};
+LocNames = {'Right Frontal', 'Left Frontal', 'Right Temporal', 'Left Temporal','Occipital', 'Right Parietal', 'Left Parietal', 'Central'};
+
+Timewindows = [0 500; 500 1000; 1000 1500; 1500 2000];
+TimeNames = {'0-500ms', '500-1000ms', '1000-1500ms', '1500-2000ms'};
+Freqband = [8 12; 12 30; 30 70; 70 130];  
+FreqNames = {'Alpha', 'Beta', 'Low Gamma', 'High Gamma'};
+
+for chan = 1:EEGOUT.nbchan
+    [ersp,~,~,times,freqs] = newtimef(EEGOUT.data(chan,:,:), EEGOUT.pnts,[0 2000], EEGOUT.srate, [3 0.5], 'plotersp', 'off', 'plotitc', 'off');
+    
+    allersp(:,:,chan) = ersp;
+end
+
+%% right frontal, high gamma, 0-500 (compute individually for each time, region, freq
+
+% Region = rf_idx;
+% Frequency = freqs >= 30 & freqs <= 70;
+% Time = times >= 0 & <= 500
+% 
+% Power = allersp(Frequency,Time,Region);
+% AvgPower = mean(Power(:));
+
+output = zeros(length(Locs), size(Freqband,1), size(Timewindows,1));
+
+
+for r = 1:length(Locs)
+    region = Locs{r};
+
+    for b = 1:size(Freqband,1)
+        frequency = freqs >= Freqband(b,1) & freqs <= Freqband(b,2);
+
+        for t = 1:size(Timewindows,1)
+            time = times >= Timewindows(t,1) & times <= Timewindows(t,2);
+
+     Power = allersp(frequency,time,region);       
+        
+      avgPower = mean(Power(:));
+
+      output(r,b,t) = avgPower;
+
+        end
+    end
+end
+%%
+PowerChange = zeros(size(output));
+
+for r = 1:size(output,1)
+    for b = 1:size(output,2)
+        baseline = output(r,b,1)
+        for t = 1:size(output,3)
+            if baseline == 0
+                PowerChange(r,b,t) = 0;
+            else
+            PowerChange(r,b,t) = ((output(r,b,t)-baseline)/abs(baseline))*100
+        end
+    end
+end
+
+end
+BandNames = cell(size(Freqband,1),1);
+for b = 1:size(Freqband,1)
+    BandnNmes{b} = sprintf('%d-%d Hz', Freqband(b,1), Freqband(b,2));
+end
+
+
+for r = 1:length(LocNames)
+    for b = 1:length(BandNames)
+for t = 1:length(TimeNames)
+    val = PowerChange (r,b,t);
+
+    if val > 0
+        direction = 'increased';
+    elseif val < 0
+            direction = 'decreased';
+    else 
+            direction = 'stayed the same';
+    end
+
+    fprintf('%s | %s | %s --> Power %s by %.2f%%\n', LocNames{r}, BandNames{b}, TimeNames{t}, direction, abs(val));
+end
+    end
+end
